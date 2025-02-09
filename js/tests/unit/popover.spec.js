@@ -1,6 +1,6 @@
-import Popover from '../../src/popover'
-import EventHandler from '../../src/dom/event-handler'
-import { clearFixture, getFixture, jQueryMock } from '../helpers/fixture'
+import EventHandler from '../../src/dom/event-handler.js'
+import Popover from '../../src/popover.js'
+import { clearFixture, getFixture, jQueryMock } from '../helpers/fixture.js'
 
 describe('Popover', () => {
   let fixtureEl
@@ -43,12 +43,6 @@ describe('Popover', () => {
     })
   })
 
-  describe('Event', () => {
-    it('should return plugin events', () => {
-      expect(Popover.Event).toEqual(jasmine.any(Object))
-    })
-  })
-
   describe('EVENT_KEY', () => {
     it('should return plugin event key', () => {
       expect(Popover.EVENT_KEY).toEqual('.bs.popover')
@@ -62,6 +56,26 @@ describe('Popover', () => {
   })
 
   describe('show', () => {
+    it('should toggle a popover after show', () => {
+      return new Promise(resolve => {
+        fixtureEl.innerHTML = '<a href="#" title="Popover" data-bs-content="https://twitter.com/getbootstrap">BS twitter</a>'
+
+        const popoverEl = fixtureEl.querySelector('a')
+        const popover = new Popover(popoverEl)
+
+        popoverEl.addEventListener('shown.bs.popover', () => {
+          expect(document.querySelector('.popover')).not.toBeNull()
+          popover.toggle()
+        })
+        popoverEl.addEventListener('hidden.bs.popover', () => {
+          expect(document.querySelector('.popover')).toBeNull()
+          resolve()
+        })
+
+        popover.show()
+      })
+    })
+
     it('should show a popover', () => {
       return new Promise(resolve => {
         fixtureEl.innerHTML = '<a href="#" title="Popover" data-bs-content="https://twitter.com/getbootstrap">BS twitter</a>'
@@ -94,6 +108,60 @@ describe('Popover', () => {
           expect(popoverDisplayed).not.toBeNull()
           expect(popoverDisplayed.querySelector('.popover-header').textContent).toEqual('Bootstrap')
           expect(popoverDisplayed.querySelector('.popover-body').textContent).toEqual('loves writing tests （╯°□°）╯︵ ┻━┻')
+          resolve()
+        })
+
+        popover.show()
+      })
+    })
+
+    it('should call content and title functions with trigger element', () => {
+      return new Promise(resolve => {
+        fixtureEl.innerHTML = '<a href="#" data-foo="bar">BS twitter</a>'
+
+        const popoverEl = fixtureEl.querySelector('a')
+        const popover = new Popover(popoverEl, {
+          title(el) {
+            return el.dataset.foo
+          },
+          content(el) {
+            return el.dataset.foo
+          }
+        })
+
+        popoverEl.addEventListener('shown.bs.popover', () => {
+          const popoverDisplayed = document.querySelector('.popover')
+
+          expect(popoverDisplayed).not.toBeNull()
+          expect(popoverDisplayed.querySelector('.popover-header').textContent).toEqual('bar')
+          expect(popoverDisplayed.querySelector('.popover-body').textContent).toEqual('bar')
+          resolve()
+        })
+
+        popover.show()
+      })
+    })
+
+    it('should call content and title functions with correct this value', () => {
+      return new Promise(resolve => {
+        fixtureEl.innerHTML = '<a href="#" data-foo="bar">BS twitter</a>'
+
+        const popoverEl = fixtureEl.querySelector('a')
+        const popover = new Popover(popoverEl, {
+          title() {
+            return this.dataset.foo
+          },
+          content() {
+            return this.dataset.foo
+          }
+        })
+
+        popoverEl.addEventListener('shown.bs.popover', () => {
+          const popoverDisplayed = document.querySelector('.popover')
+
+          expect(popoverDisplayed).not.toBeNull()
+          expect(popoverDisplayed.querySelector('.popover-header').textContent).toEqual('bar')
+          expect(popoverDisplayed.querySelector('.popover-body').textContent).toEqual('bar')
           resolve()
         })
 
@@ -170,11 +238,11 @@ describe('Popover', () => {
 
       const popoverEl = fixtureEl.querySelector('a')
       const popover = new Popover(popoverEl, { animation: false })
-      spyOn(EventHandler, 'trigger').and.callThrough()
+      const spy = spyOn(EventHandler, 'trigger').and.callThrough()
 
       popover.show()
 
-      expect(EventHandler.trigger).not.toHaveBeenCalledWith(popoverEl, Popover.Event.SHOW)
+      expect(spy).not.toHaveBeenCalledWith(popoverEl, Popover.eventName('show'))
       expect(document.querySelector('.popover')).toBeNull()
     })
 
@@ -335,11 +403,11 @@ describe('Popover', () => {
       jQueryMock.fn.popover = Popover.jQueryInterface
       jQueryMock.elements = [popoverEl]
 
-      spyOn(popover, 'show')
+      const spy = spyOn(popover, 'show')
 
       jQueryMock.fn.popover.call(jQueryMock, 'show')
 
-      expect(popover.show).toHaveBeenCalled()
+      expect(spy).toHaveBeenCalled()
     })
   })
 

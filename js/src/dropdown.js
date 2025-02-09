@@ -1,13 +1,18 @@
 /**
  * --------------------------------------------------------------------------
- * Bootstrap (v5.1.3): dropdown.js
+ * Bootstrap dropdown.js
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
  * --------------------------------------------------------------------------
  */
 
 import * as Popper from '@popperjs/core'
+import BaseComponent from './base-component.js'
+import EventHandler from './dom/event-handler.js'
+import Manipulator from './dom/manipulator.js'
+import SelectorEngine from './dom/selector-engine.js'
 import {
   defineJQueryPlugin,
+  execute,
   getElement,
   getNextActiveElement,
   isDisabled,
@@ -15,11 +20,7 @@ import {
   isRTL,
   isVisible,
   noop
-} from './util/index'
-import EventHandler from './dom/event-handler'
-import Manipulator from './dom/manipulator'
-import SelectorEngine from './dom/selector-engine'
-import BaseComponent from './base-component'
+} from './util/index.js'
 
 /**
  * Constants
@@ -48,8 +49,11 @@ const CLASS_NAME_SHOW = 'show'
 const CLASS_NAME_DROPUP = 'dropup'
 const CLASS_NAME_DROPEND = 'dropend'
 const CLASS_NAME_DROPSTART = 'dropstart'
+const CLASS_NAME_DROPUP_CENTER = 'dropup-center'
+const CLASS_NAME_DROPDOWN_CENTER = 'dropdown-center'
 
-const SELECTOR_DATA_TOGGLE = '[data-bs-toggle="dropdown"]'
+const SELECTOR_DATA_TOGGLE = '[data-bs-toggle="dropdown"]:not(.disabled):not(:disabled)'
+const SELECTOR_DATA_TOGGLE_SHOWN = `${SELECTOR_DATA_TOGGLE}.${CLASS_NAME_SHOW}`
 const SELECTOR_MENU = '.dropdown-menu'
 const SELECTOR_NAVBAR = '.navbar'
 const SELECTOR_NAVBAR_NAV = '.navbar-nav'
@@ -61,23 +65,25 @@ const PLACEMENT_BOTTOM = isRTL() ? 'bottom-end' : 'bottom-start'
 const PLACEMENT_BOTTOMEND = isRTL() ? 'bottom-start' : 'bottom-end'
 const PLACEMENT_RIGHT = isRTL() ? 'left-start' : 'right-start'
 const PLACEMENT_LEFT = isRTL() ? 'right-start' : 'left-start'
+const PLACEMENT_TOPCENTER = 'top'
+const PLACEMENT_BOTTOMCENTER = 'bottom'
 
 const Default = {
-  offset: [0, 2],
+  autoClose: true,
   boundary: 'clippingParents',
-  reference: 'toggle',
   display: 'dynamic',
+  offset: [0, 2],
   popperConfig: null,
-  autoClose: true
+  reference: 'toggle'
 }
 
 const DefaultType = {
-  offset: '(array|string|function)',
+  autoClose: '(boolean|string)',
   boundary: '(string|element)',
-  reference: '(string|element|object)',
   display: 'string',
+  offset: '(array|string|function)',
   popperConfig: '(null|object|function)',
-  autoClose: '(boolean|string)'
+  reference: '(string|element|object)'
 }
 
 /**
@@ -90,7 +96,10 @@ class Dropdown extends BaseComponent {
 
     this._popper = null
     this._parent = this._element.parentNode // dropdown wrapper
-    this._menu = SelectorEngine.findOne(SELECTOR_MENU, this._parent)
+    // TODO: v6 revert #37011 & change markup https://getbootstrap.com/docs/5.3/forms/input-group/
+    this._menu = SelectorEngine.next(this._element, SELECTOR_MENU)[0] ||
+      SelectorEngine.prev(this._element, SELECTOR_MENU)[0] ||
+      SelectorEngine.findOne(SELECTOR_MENU, this._parent)
     this._inNavbar = this._detectNavbar()
   }
 
@@ -215,7 +224,7 @@ class Dropdown extends BaseComponent {
 
   _createPopper() {
     if (typeof Popper === 'undefined') {
-      throw new TypeError('Bootstrap\'s dropdowns require Popper (https://popper.js.org)')
+      throw new TypeError('Bootstrap\'s dropdowns require Popper (https://popper.js.org/docs/v2/)')
     }
 
     let referenceElement = this._element
@@ -245,6 +254,14 @@ class Dropdown extends BaseComponent {
 
     if (parentDropdown.classList.contains(CLASS_NAME_DROPSTART)) {
       return PLACEMENT_LEFT
+    }
+
+    if (parentDropdown.classList.contains(CLASS_NAME_DROPUP_CENTER)) {
+      return PLACEMENT_TOPCENTER
+    }
+
+    if (parentDropdown.classList.contains(CLASS_NAME_DROPDOWN_CENTER)) {
+      return PLACEMENT_BOTTOMCENTER
     }
 
     // We need to trim the value because custom properties can also include spaces
@@ -294,7 +311,7 @@ class Dropdown extends BaseComponent {
 
     // Disable Popper if we have a static display or Dropdown is in Navbar
     if (this._inNavbar || this._config.display === 'static') {
-      Manipulator.setDataAttribute(this._menu, 'popper', 'static') // todo:v6 remove
+      Manipulator.setDataAttribute(this._menu, 'popper', 'static') // TODO: v6 remove
       defaultBsPopperConfig.modifiers = [{
         name: 'applyStyles',
         enabled: false
@@ -303,7 +320,7 @@ class Dropdown extends BaseComponent {
 
     return {
       ...defaultBsPopperConfig,
-      ...(typeof this._config.popperConfig === 'function' ? this._config.popperConfig(defaultBsPopperConfig) : this._config.popperConfig)
+      ...execute(this._config.popperConfig, [undefined, defaultBsPopperConfig])
     }
   }
 
@@ -341,15 +358,11 @@ class Dropdown extends BaseComponent {
       return
     }
 
-    const toggles = SelectorEngine.find(SELECTOR_DATA_TOGGLE)
+    const openToggles = SelectorEngine.find(SELECTOR_DATA_TOGGLE_SHOWN)
 
-    for (const toggle of toggles) {
+    for (const toggle of openToggles) {
       const context = Dropdown.getInstance(toggle)
       if (!context || context._config.autoClose === false) {
-        continue
-      }
-
-      if (!context._isShown()) {
         continue
       }
 
@@ -379,53 +392,43 @@ class Dropdown extends BaseComponent {
   }
 
   static dataApiKeydownHandler(event) {
-    // If not input/textarea:
-    //  - And not a key in UP | DOWN | ESCAPE => not a dropdown command
-    // If input/textarea && If key is other than ESCAPE
-    //    - If key is not UP or DOWN => not a dropdown command
-    //    - If trigger inside the menu => not a dropdown command
+    // If not an UP | DOWN | ESCAPE key => not a dropdown command
+    // If input/textarea && if key is other than ESCAPE => not a dropdown command
 
-    const { target, key, delegateTarget } = event
-    const isInput = /input|textarea/i.test(target.tagName)
-    const isEscapeEvent = key === ESCAPE_KEY
-    const isUpOrDownEvent = [ARROW_UP_KEY, ARROW_DOWN_KEY].includes(key)
+    const isInput = /input|textarea/i.test(event.target.tagName)
+    const isEscapeEvent = event.key === ESCAPE_KEY
+    const isUpOrDownEvent = [ARROW_UP_KEY, ARROW_DOWN_KEY].includes(event.key)
 
-    if (!isInput && !(isUpOrDownEvent || isEscapeEvent)) {
+    if (!isUpOrDownEvent && !isEscapeEvent) {
       return
     }
 
     if (isInput && !isEscapeEvent) {
-      // eslint-disable-next-line unicorn/no-lonely-if
-      if (!isUpOrDownEvent || target.closest(SELECTOR_MENU)) {
-        return
-      }
-    }
-
-    const isActive = delegateTarget.classList.contains(CLASS_NAME_SHOW)
-
-    if (!isActive && isEscapeEvent) {
       return
     }
 
     event.preventDefault()
-    event.stopPropagation()
 
-    if (isDisabled(this)) {
-      return
-    }
+    // TODO: v6 revert #37011 & change markup https://getbootstrap.com/docs/5.3/forms/input-group/
+    const getToggleButton = this.matches(SELECTOR_DATA_TOGGLE) ?
+      this :
+      (SelectorEngine.prev(this, SELECTOR_DATA_TOGGLE)[0] ||
+        SelectorEngine.next(this, SELECTOR_DATA_TOGGLE)[0] ||
+        SelectorEngine.findOne(SELECTOR_DATA_TOGGLE, event.delegateTarget.parentNode))
 
-    const getToggleButton = SelectorEngine.findOne(SELECTOR_DATA_TOGGLE, delegateTarget.parentNode)
     const instance = Dropdown.getOrCreateInstance(getToggleButton)
 
-    if (isEscapeEvent) {
-      instance.hide()
-      getToggleButton.focus()
+    if (isUpOrDownEvent) {
+      event.stopPropagation()
+      instance.show()
+      instance._selectMenuItem(event)
       return
     }
 
-    if (isUpOrDownEvent) {
-      instance.show()
-      instance._selectMenuItem(event)
+    if (instance._isShown()) { // else is escape and we check if it is shown
+      event.stopPropagation()
+      instance.hide()
+      getToggleButton.focus()
     }
   }
 }

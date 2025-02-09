@@ -1,5 +1,7 @@
-import Toast from '../../src/toast'
-import { clearFixture, createEvent, getFixture, jQueryMock } from '../helpers/fixture'
+import Toast from '../../src/toast.js'
+import {
+  clearFixture, createEvent, getFixture, jQueryMock
+} from '../helpers/fixture.js'
 
 describe('Toast', () => {
   let fixtureEl
@@ -160,7 +162,7 @@ describe('Toast', () => {
     })
 
     it('should not trigger shown if show is prevented', () => {
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
         fixtureEl.innerHTML = [
           '<div class="toast" data-bs-delay="1" data-bs-animation="false">',
           '  <div class="toast-body">',
@@ -185,7 +187,7 @@ describe('Toast', () => {
         })
 
         toastEl.addEventListener('shown.bs.toast', () => {
-          throw new Error('shown event should not be triggered if show is prevented')
+          reject(new Error('shown event should not be triggered if show is prevented'))
         })
 
         toast.show()
@@ -208,14 +210,14 @@ describe('Toast', () => {
         setTimeout(() => {
           toast._config.autohide = false
           toastEl.addEventListener('shown.bs.toast', () => {
-            expect(toast._clearTimeout).toHaveBeenCalled()
+            expect(spy).toHaveBeenCalled()
             expect(toast._timeout).toBeNull()
             resolve()
           })
           toast.show()
         }, toast._config.delay / 2)
 
-        spyOn(toast, '_clearTimeout').and.callThrough()
+        const spy = spyOn(toast, '_clearTimeout').and.callThrough()
 
         toast.show()
       })
@@ -441,15 +443,15 @@ describe('Toast', () => {
       const toastEl = fixtureEl.querySelector('div')
       const toast = new Toast(toastEl)
 
-      spyOn(toastEl.classList, 'contains')
+      const spy = spyOn(toastEl.classList, 'contains')
 
       toast.hide()
 
-      expect(toastEl.classList.contains).toHaveBeenCalled()
+      expect(spy).toHaveBeenCalled()
     })
 
     it('should not trigger hidden if hide is prevented', () => {
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
         fixtureEl.innerHTML = [
           '<div class="toast" data-bs-delay="1" data-bs-animation="false">',
           '  <div class="toast-body">',
@@ -478,7 +480,7 @@ describe('Toast', () => {
         })
 
         toastEl.addEventListener('hidden.bs.toast', () => {
-          throw new Error('hidden event should not be triggered if hide is prevented')
+          reject(new Error('hidden event should not be triggered if hide is prevented'))
         })
 
         toast.show()
@@ -568,7 +570,7 @@ describe('Toast', () => {
       const div = fixtureEl.querySelector('div')
       const toast = new Toast(div)
 
-      spyOn(toast, 'show')
+      const spy = spyOn(toast, 'show')
 
       jQueryMock.fn.toast = Toast.jQueryInterface
       jQueryMock.elements = [div]
@@ -576,7 +578,7 @@ describe('Toast', () => {
       jQueryMock.fn.toast.call(jQueryMock, 'show')
 
       expect(Toast.getInstance(div)).toEqual(toast)
-      expect(toast.show).toHaveBeenCalled()
+      expect(spy).toHaveBeenCalled()
     })
 
     it('should throw error on undefined method', () => {

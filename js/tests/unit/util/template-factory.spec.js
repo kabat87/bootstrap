@@ -1,5 +1,5 @@
-import { clearFixture, getFixture } from '../../helpers/fixture'
-import TemplateFactory from '../../../src/util/template-factory'
+import TemplateFactory from '../../../src/util/template-factory.js'
+import { clearFixture, getFixture } from '../../helpers/fixture.js'
 
 describe('TemplateFactory', () => {
   let fixtureEl
@@ -99,7 +99,7 @@ describe('TemplateFactory', () => {
 
       it('should resolve class if function is given', () => {
         const factory = new TemplateFactory({
-          extraClass: arg => {
+          extraClass(arg) {
             expect(arg).toEqual(factory)
             return 'testClass'
           }
