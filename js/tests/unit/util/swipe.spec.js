@@ -1,7 +1,7 @@
-import { clearFixture, getFixture } from '../../helpers/fixture'
-import EventHandler from '../../../src/dom/event-handler'
-import Swipe from '../../../src/util/swipe'
-import { noop } from '../../../src/util'
+import EventHandler from '../../../src/dom/event-handler.js'
+import { noop } from '../../../src/util/index.js'
+import Swipe from '../../../src/util/swipe.js'
+import { clearFixture, getFixture } from '../../helpers/fixture.js'
 
 describe('Swipe', () => {
   const { Simulator, PointerEvent } = window
@@ -85,7 +85,7 @@ describe('Swipe', () => {
         defineDocumentElementOntouchstart()
         // eslint-disable-next-line no-new
         new Swipe(swipeEl, {
-          leftCallback: () => {
+          leftCallback() {
             expect(spyRight).not.toHaveBeenCalled()
             restorePointerEvents()
             resolve()
@@ -107,7 +107,7 @@ describe('Swipe', () => {
         defineDocumentElementOntouchstart()
         // eslint-disable-next-line no-new
         new Swipe(swipeEl, {
-          rightCallback: () => {
+          rightCallback() {
             expect(spyLeft).not.toHaveBeenCalled()
             restorePointerEvents()
             resolve()
@@ -163,7 +163,7 @@ describe('Swipe', () => {
       deleteDocumentElementOntouchstart()
 
       const swipe = new Swipe(swipeEl)
-      spyOn(swipe, '_handleSwipe')
+      const spy = spyOn(swipe, '_handleSwipe')
 
       mockSwipeGesture(swipeEl, {
         pos: [300, 10],
@@ -173,7 +173,7 @@ describe('Swipe', () => {
       })
 
       restorePointerEvents()
-      expect(swipe._handleSwipe).not.toHaveBeenCalled()
+      expect(spy).not.toHaveBeenCalled()
     })
 
     it('should allow swipeRight and call "rightCallback" with pointer events', () => {
@@ -190,7 +190,7 @@ describe('Swipe', () => {
         defineDocumentElementOntouchstart()
         // eslint-disable-next-line no-new
         new Swipe(swipeEl, {
-          rightCallback: () => {
+          rightCallback() {
             deleteDocumentElementOntouchstart()
             expect().nothing()
             resolve()
@@ -215,7 +215,7 @@ describe('Swipe', () => {
         defineDocumentElementOntouchstart()
         // eslint-disable-next-line no-new
         new Swipe(swipeEl, {
-          leftCallback: () => {
+          leftCallback() {
             expect().nothing()
             deleteDocumentElementOntouchstart()
             resolve()

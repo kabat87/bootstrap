@@ -1,18 +1,20 @@
 /**
  * --------------------------------------------------------------------------
- * Bootstrap (v5.1.3): modal.js
+ * Bootstrap modal.js
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
  * --------------------------------------------------------------------------
  */
 
-import { defineJQueryPlugin, getElementFromSelector, isRTL, isVisible, reflow } from './util/index'
-import EventHandler from './dom/event-handler'
-import SelectorEngine from './dom/selector-engine'
-import ScrollBarHelper from './util/scrollbar'
-import BaseComponent from './base-component'
-import Backdrop from './util/backdrop'
-import FocusTrap from './util/focustrap'
-import { enableDismissTrigger } from './util/component-functions'
+import BaseComponent from './base-component.js'
+import EventHandler from './dom/event-handler.js'
+import SelectorEngine from './dom/selector-engine.js'
+import Backdrop from './util/backdrop.js'
+import { enableDismissTrigger } from './util/component-functions.js'
+import FocusTrap from './util/focustrap.js'
+import {
+  defineJQueryPlugin, isRTL, isVisible, reflow
+} from './util/index.js'
+import ScrollBarHelper from './util/scrollbar.js'
 
 /**
  * Constants
@@ -30,6 +32,8 @@ const EVENT_HIDDEN = `hidden${EVENT_KEY}`
 const EVENT_SHOW = `show${EVENT_KEY}`
 const EVENT_SHOWN = `shown${EVENT_KEY}`
 const EVENT_RESIZE = `resize${EVENT_KEY}`
+const EVENT_CLICK_DISMISS = `click.dismiss${EVENT_KEY}`
+const EVENT_MOUSEDOWN_DISMISS = `mousedown.dismiss${EVENT_KEY}`
 const EVENT_KEYDOWN_DISMISS = `keydown.dismiss${EVENT_KEY}`
 const EVENT_CLICK_DATA_API = `click${EVENT_KEY}${DATA_API_KEY}`
 
@@ -45,14 +49,14 @@ const SELECTOR_DATA_TOGGLE = '[data-bs-toggle="modal"]'
 
 const Default = {
   backdrop: true,
-  keyboard: true,
-  focus: true
+  focus: true,
+  keyboard: true
 }
 
 const DefaultType = {
   backdrop: '(boolean|string)',
-  keyboard: 'boolean',
-  focus: 'boolean'
+  focus: 'boolean',
+  keyboard: 'boolean'
 }
 
 /**
@@ -69,6 +73,8 @@ class Modal extends BaseComponent {
     this._isShown = false
     this._isTransitioning = false
     this._scrollBar = new ScrollBarHelper()
+
+    this._addEventListeners()
   }
 
   // Getters
@@ -111,9 +117,6 @@ class Modal extends BaseComponent {
 
     this._adjustDialog()
 
-    this._toggleEscapeEventListener(true)
-    this._toggleResizeEventListener(true)
-
     this._backdrop.show(() => this._showElement(relatedTarget))
   }
 
@@ -130,10 +133,6 @@ class Modal extends BaseComponent {
 
     this._isShown = false
     this._isTransitioning = true
-
-    this._toggleEscapeEventListener(false)
-    this._toggleResizeEventListener(false)
-
     this._focustrap.deactivate()
 
     this._element.classList.remove(CLASS_NAME_SHOW)
@@ -142,12 +141,12 @@ class Modal extends BaseComponent {
   }
 
   dispose() {
-    for (const htmlElement of [window, this._dialog]) {
-      EventHandler.off(htmlElement, EVENT_KEY)
-    }
+    EventHandler.off(window, EVENT_KEY)
+    EventHandler.off(this._dialog, EVENT_KEY)
 
     this._backdrop.dispose()
     this._focustrap.deactivate()
+
     super.dispose()
   }
 
@@ -157,22 +156,9 @@ class Modal extends BaseComponent {
 
   // Private
   _initializeBackDrop() {
-    const clickCallback = () => {
-      if (this._config.backdrop === 'static') {
-        this._triggerBackdropTransition()
-        return
-      }
-
-      this.hide()
-    }
-
-    // 'static' option will be translated to true, and booleans will keep their value
-    const isVisible = Boolean(this._config.backdrop)
-
     return new Backdrop({
-      isVisible,
-      isAnimated: this._isAnimated(),
-      clickCallback: isVisible ? clickCallback : null
+      isVisible: Boolean(this._config.backdrop), // 'static' option will be translated to true, and booleans will keep their value,
+      isAnimated: this._isAnimated()
     })
   }
 
@@ -217,34 +203,43 @@ class Modal extends BaseComponent {
     this._queueCallback(transitionComplete, this._dialog, this._isAnimated())
   }
 
-  _toggleEscapeEventListener(enable) {
-    if (!enable) {
-      EventHandler.off(this._element, EVENT_KEYDOWN_DISMISS)
-      return
-    }
-
+  _addEventListeners() {
     EventHandler.on(this._element, EVENT_KEYDOWN_DISMISS, event => {
       if (event.key !== ESCAPE_KEY) {
         return
       }
 
       if (this._config.keyboard) {
-        event.preventDefault()
         this.hide()
         return
       }
 
       this._triggerBackdropTransition()
     })
-  }
 
-  _toggleResizeEventListener(enable) {
-    if (enable) {
-      EventHandler.on(window, EVENT_RESIZE, () => this._adjustDialog())
-      return
-    }
+    EventHandler.on(window, EVENT_RESIZE, () => {
+      if (this._isShown && !this._isTransitioning) {
+        this._adjustDialog()
+      }
+    })
 
-    EventHandler.off(window, EVENT_RESIZE)
+    EventHandler.on(this._element, EVENT_MOUSEDOWN_DISMISS, event => {
+      // a bad trick to segregate clicks that may start inside dialog but end outside, and avoid listen to scrollbar clicks
+      EventHandler.one(this._element, EVENT_CLICK_DISMISS, event2 => {
+        if (this._element !== event.target || this._element !== event2.target) {
+          return
+        }
+
+        if (this._config.backdrop === 'static') {
+          this._triggerBackdropTransition()
+          return
+        }
+
+        if (this._config.backdrop) {
+          this.hide()
+        }
+      })
+    })
   }
 
   _hideModal() {
@@ -342,7 +337,7 @@ class Modal extends BaseComponent {
  */
 
 EventHandler.on(document, EVENT_CLICK_DATA_API, SELECTOR_DATA_TOGGLE, function (event) {
-  const target = getElementFromSelector(this)
+  const target = SelectorEngine.getElementFromSelector(this)
 
   if (['A', 'AREA'].includes(this.tagName)) {
     event.preventDefault()
